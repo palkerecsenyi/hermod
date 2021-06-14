@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"hermod/compiler"
+	"github.com/palkerecsenyi/hermod/compiler"
 	"log"
 )
 

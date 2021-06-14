@@ -1,7 +1,7 @@
 package service
 
 import (
-	"hermod/encoder"
+	"github.com/palkerecsenyi/hermod/encoder"
 	"net"
 	"net/http"
 	"time"

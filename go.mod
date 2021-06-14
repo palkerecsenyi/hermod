@@ -1,4 +1,4 @@
-module hermod
+module github.com/palkerecsenyi/hermod
 
 go 1.16
 

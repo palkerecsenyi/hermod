@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/iancoleman/strcase"
-	"hermod/encoder"
+	"github.com/palkerecsenyi/hermod/encoder"
 	"reflect"
 )
 
