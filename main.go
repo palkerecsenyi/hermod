@@ -1,3 +1,9 @@
+// Package main provides a compiler for Hermod YAML to Go.
+//
+// For instructions on usage, type:
+//     hermod --help
+//
+// For information about composing YAML files, see README.md
 package main
 
 import (
