@@ -94,7 +94,7 @@ func decodeValue(field *Field, rawValue []byte) (interface{}, error) {
 		index := 0
 		var items []interface{}
 		for {
-			length := int(sliceToU32(rawValue[index : index+4]))
+			length := int(SliceToU32(rawValue[index : index+4]))
 			index += 4
 
 			rawItem := rawValue[index:(index + length)]
@@ -124,11 +124,11 @@ func decodeValue(field *Field, rawValue []byte) (interface{}, error) {
 	case "TinyInteger":
 		return TinyInteger(rawValue[0]), nil
 	case "SmallInteger":
-		return SmallInteger(sliceToU16(rawValue)), nil
+		return SmallInteger(SliceToU16(rawValue)), nil
 	case "Integer":
-		return Integer(sliceToU32(rawValue)), nil
+		return Integer(SliceToU32(rawValue)), nil
 	case "BigInteger":
-		return BigInteger(sliceToU64(rawValue)), nil
+		return BigInteger(SliceToU64(rawValue)), nil
 
 	case "String":
 		return String(rawValue), nil

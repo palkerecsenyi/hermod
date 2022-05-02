@@ -23,17 +23,17 @@ func u64to8(number uint64) []byte {
 	return _toByteSlice(number, 8)
 }
 
-func add64ToSlice(number uint64, slice *[]byte) *[]byte {
+func Add64ToSlice(number uint64, slice *[]byte) *[]byte {
 	newSlice := append(*slice, u64to8(number)...)
 	return &newSlice
 }
 
-func add32ToSlice(number uint32, slice *[]byte) *[]byte {
+func Add32ToSlice(number uint32, slice *[]byte) *[]byte {
 	newSlice := append(*slice, u32to8(number)...)
 	return &newSlice
 }
 
-func add16ToSlice(number uint16, slice *[]byte) *[]byte {
+func Add16ToSlice(number uint16, slice *[]byte) *[]byte {
 	newSlice := append(*slice, u16to8(number)...)
 	return &newSlice
 }
@@ -48,22 +48,22 @@ func _fromByteSlice(slice []byte) uint64 {
 	return total
 }
 
-func sliceToU16(slice []byte) uint16 {
+func SliceToU16(slice []byte) uint16 {
 	return uint16(_fromByteSlice(slice))
 }
 
-func sliceToU32(slice []byte) uint32 {
+func SliceToU32(slice []byte) uint32 {
 	return uint32(_fromByteSlice(slice))
 }
 
-func sliceToU64(slice []byte) uint64 {
+func SliceToU64(slice []byte) uint64 {
 	return _fromByteSlice(slice)
 }
 
 func addLengthMarker(length int, extended bool, slice *[]byte) *[]byte {
 	if extended {
-		return add64ToSlice(uint64(length), slice)
+		return Add64ToSlice(uint64(length), slice)
 	} else {
-		return add32ToSlice(uint32(length), slice)
+		return Add32ToSlice(uint32(length), slice)
 	}
 }

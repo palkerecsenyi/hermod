@@ -1,12 +1,10 @@
 package service
 
 import (
-	"context"
 	"encoding/base64"
 	"errors"
 	"github.com/gorilla/websocket"
 	"net/http"
-	"time"
 )
 
 var upgrader = websocket.Upgrader{
@@ -31,14 +29,7 @@ func serveConnection(config *HermodConfig, w http.ResponseWriter, r *http.Reques
 		_ = conn.Close()
 	}()
 
-	path := r.URL.Path
-	endpoint, ok := endpointRegistrations[path]
-	if !ok {
-		wsSendError(conn, errors.New("404: endpoint not found"))
-		return
-	}
-
-	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(config.Timeout))
+	ctx := r.Context()
 	request := Request{
 		Context: ctx,
 		Headers: r.Header,
@@ -56,38 +47,31 @@ func serveConnection(config *HermodConfig, w http.ResponseWriter, r *http.Reques
 
 	done := make(chan bool)
 	go func(c chan bool) {
-		endpoint(&request, &response)
+		serveWsConnection(&request, &response)
 		c <- true
 	}(done)
 
-	go func(r *Request) {
-		for {
-			select {
-			case <-done:
+	for {
+		select {
+		case <-done:
+			close(request.Data)
+			return
+		default:
+			messageType, data, err := conn.ReadMessage()
+			if err != nil {
+				wsSendError(conn, errors.New("400: message could not be read"))
 				return
-			default:
-				messageType, data, err := conn.ReadMessage()
+			}
+
+			if messageType == websocket.TextMessage {
+				data, err = base64.StdEncoding.DecodeString(string(data))
 				if err != nil {
-					wsSendError(conn, errors.New("400: message could not be read"))
-					cancel()
+					wsSendError(conn, errors.New("400: base64-encoded message could not be read"))
 					return
 				}
-
-				if messageType == websocket.TextMessage {
-					data, err = base64.StdEncoding.DecodeString(string(data))
-					if err != nil {
-						wsSendError(conn, errors.New("400: base64-encoded message could not be read"))
-						cancel()
-						return
-					}
-				}
-
-				r.Data <- &data
 			}
-		}
-	}(&request)
 
-	<-done
-	close(request.Data)
-	cancel()
+			request.Data <- &data
+		}
+	}
 }

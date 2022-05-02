@@ -12,8 +12,22 @@ func toEncoderType(typeName string) interface{} {
 	switch typeName {
 	case "string":
 		return encoder.String("")
+	case "tinyinteger":
+		return encoder.TinyInteger(0)
+	case "smallinteger":
+		return encoder.SmallInteger(0)
 	case "integer":
 		return encoder.Integer(0)
+	case "biginteger":
+		return encoder.BigInteger(0)
+	case "tinysignedinteger":
+		return encoder.TinySignedInteger(0)
+	case "smallsignedinteger":
+		return encoder.SmallSignedInteger(0)
+	case "signedinteger":
+		return encoder.SignedInteger(0)
+	case "bigsignedinteger":
+		return encoder.BigSignedInteger(0)
 	case "boolean":
 		return encoder.Boolean(0)
 	}

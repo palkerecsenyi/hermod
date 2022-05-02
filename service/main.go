@@ -24,11 +24,19 @@ type Endpoint struct {
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+	if path != h.config.Path {
+		w.WriteHeader(404)
+		_, _ = w.Write([]byte("Hermod does not run on this path"))
+		return
+	}
+
 	serveConnection(h.config, w, r)
 }
 
 type HermodConfig struct {
 	Timeout time.Duration
+	Path    string
 }
 
 func StartServer(addr string, config *HermodConfig) error {

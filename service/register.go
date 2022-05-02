@@ -30,8 +30,8 @@ func (res *Response) SendError(err error) {
 	res.Unlock()
 }
 
-var endpointRegistrations = map[string]func(*Request, *Response){}
+var endpointRegistrations = map[uint16]func(*Request, *Response){}
 
-func RegisterEndpoint(path string, handler func(request *Request, response *Response)) {
-	endpointRegistrations[path] = handler
+func RegisterEndpoint(id uint16, handler func(request *Request, response *Response)) {
+	endpointRegistrations[id] = handler
 }

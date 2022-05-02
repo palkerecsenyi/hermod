@@ -23,6 +23,7 @@ type endpointArgumentDefinition struct {
 
 type endpointDefinition struct {
 	Path string
+	Id   uint16
 	In   endpointArgumentDefinition
 	Out  endpointArgumentDefinition
 }

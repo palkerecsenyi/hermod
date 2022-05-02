@@ -49,7 +49,7 @@ func EncodeUnit(unit *FilledUnit) (*[]byte, error) {
 			return nil, errors.New(fmt.Sprintf("value of %s over size limit", field.Name))
 		}
 
-		encodedUnit = *add16ToSlice(field.FieldId, &encodedUnit)
+		encodedUnit = *Add16ToSlice(field.FieldId, &encodedUnit)
 		encodedUnit = *addLengthMarker(length, field.Extended, &encodedUnit)
 		encodedUnit = append(encodedUnit, encodedValue...)
 	}
@@ -65,14 +65,14 @@ func DecodeUnit(_rawUnit *[]byte, unit Unit) (*FilledUnit, error) {
 		Unit:   &unit,
 		Values: map[Field]FieldValue{},
 	}
-	intendedTransmissionId := sliceToU16(rawUnit[0:2])
+	intendedTransmissionId := SliceToU16(rawUnit[0:2])
 	if intendedTransmissionId != unit.TransmissionId {
 		return nil, errors.New(fmt.Sprintf("transmission ID %d did not match expected ID %d", intendedTransmissionId, unit.TransmissionId))
 	}
 
 	index := 2
 	for {
-		fieldId := sliceToU16(rawUnit[index : index+2])
+		fieldId := SliceToU16(rawUnit[index : index+2])
 		index += 2
 		var field *Field
 		for _, thisField := range unit.Fields {
@@ -88,10 +88,10 @@ func DecodeUnit(_rawUnit *[]byte, unit Unit) (*FilledUnit, error) {
 
 		length := 0
 		if field.Extended {
-			length = int(sliceToU32(rawUnit[index : index+8]))
+			length = int(SliceToU32(rawUnit[index : index+8]))
 			index += 8
 		} else {
-			length = int(sliceToU32(rawUnit[index : index+4]))
+			length = int(SliceToU32(rawUnit[index : index+4]))
 			index += 4
 		}
 
