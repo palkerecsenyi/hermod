@@ -35,14 +35,14 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type HermodConfig struct {
-	Timeout time.Duration
-	Path    string
+	WSHandshakeTimeout time.Duration
+	Path               string
 }
 
 func StartServer(addr string, config *HermodConfig) error {
 	if config == nil {
 		config = &HermodConfig{
-			Timeout: 30 * time.Second,
+			WSHandshakeTimeout: 10 * time.Second,
 		}
 	}
 

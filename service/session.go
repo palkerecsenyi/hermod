@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"sync"
 )
 
 func newSessionsStruct() connectionSessions {
@@ -12,37 +13,41 @@ func newSessionsStruct() connectionSessions {
 }
 
 type connectionSessions struct {
+	sync.RWMutex
 	sessions map[uint32]chan *[]byte
 }
 
-func (c *connectionSessions) newSessionId() (uint32, error) {
+func (c *connectionSessions) createNewSession() (uint32, error) {
+	c.Lock()
+	defer c.Unlock()
+
 	sessionId := uint32(0)
 	for {
 		if _, ok := c.sessions[sessionId]; ok {
 			sessionId += 1
 		} else {
-			return sessionId, nil
+			break
 		}
 
 		if sessionId > 0xffffffff {
-			break
+			return 0, errors.New("no more session IDs available")
 		}
 	}
 
-	return 0, errors.New("no more session IDs available")
-}
-
-func (c *connectionSessions) createChannel(sessionId uint32) error {
 	_, found := c.sessions[sessionId]
+	// just to double-check
 	if found {
-		return errors.New(fmt.Sprintf("session id %d already in use", sessionId))
+		return 0, errors.New(fmt.Sprintf("session id %d already in use", sessionId))
 	}
 
 	c.sessions[sessionId] = make(chan *[]byte)
-	return nil
+	return sessionId, nil
 }
 
 func (c *connectionSessions) getChannel(sessionId uint32) (chan *[]byte, error) {
+	c.RLock()
+	defer c.RUnlock()
+
 	channel, ok := c.sessions[sessionId]
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("session id %d not found", sessionId))
@@ -52,12 +57,16 @@ func (c *connectionSessions) getChannel(sessionId uint32) (chan *[]byte, error) 
 }
 
 func (c *connectionSessions) endSession(sessionId uint32) error {
+	c.Lock()
+	defer c.Unlock()
+
 	channel, err := c.getChannel(sessionId)
 	if err != nil {
 		return err
 	}
 
 	// these must happen together to avoid duplicate channel closure (a fatal error)
+	// therefore, these calls should only be made through a call to this endSession function
 	close(channel)
 	delete(c.sessions, sessionId)
 	return nil
@@ -66,7 +75,8 @@ func (c *connectionSessions) endSession(sessionId uint32) error {
 func (c *connectionSessions) initiateNewSession(req *Request, res *Response, frame messageFrame, endpoint func(*Request, *Response)) {
 	channel, err := c.getChannel(frame.sessionId)
 	if err != nil {
-		res.SendError(err)
+		errorFrame := createErrorSession(frame.endpointId, frame.sessionId, err.Error())
+		res.Send(&errorFrame)
 		return
 	}
 
@@ -77,9 +87,17 @@ func (c *connectionSessions) initiateNewSession(req *Request, res *Response, fra
 	}
 	forwardRes := Response{
 		sendFunction: func(dataToSend *[]byte, error bool) {
+			if error {
+				errorFrame := createErrorSession(frame.endpointId, frame.sessionId, string(*dataToSend))
+				res.Send(&errorFrame)
+				return
+			}
+
 			responseFrame := messageFrame{
-				flag: Data,
-				data: *dataToSend,
+				endpointId: frame.endpointId,
+				sessionId:  frame.sessionId,
+				flag:       Data,
+				data:       *dataToSend,
 			}
 			encoded := responseFrame.encode()
 			res.Send(&encoded)

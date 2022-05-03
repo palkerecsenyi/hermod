@@ -41,12 +41,13 @@ func writeHandlerCall(w *bytes.Buffer, errIsNew bool, doneCall bool, indentModif
 	}
 
 	_writelni(w, 2+indentModifier, fmt.Sprintf("err %s= handler(&request, &response)", colon))
-	if doneCall {
-		_writelni(w, 2+indentModifier, "done <- struct{}{}")
-	}
 	_writelni(w, 2+indentModifier, "if err != nil {")
 	_writelni(w, 3+indentModifier, "res.SendError(err)")
 	_writelni(w, 2+indentModifier, "}")
+
+	if doneCall {
+		_writelni(w, 2+indentModifier, "done <- struct{}{}")
+	}
 }
 
 func writeDecoderCall(w *bytes.Buffer, in string, out string, inArgument *endpointArgumentDefinition, indentModifier int) {
@@ -115,6 +116,11 @@ func writeService(w *bytes.Buffer, service *serviceDefinition, packageName strin
 				_writelni(w, 3, "case <-done:")
 				_writelni(w, 4, "return")
 				_writelni(w, 3, "case data := <-req.Data:")
+
+				_writelni(w, 4, "if data == nil {")
+				_writelni(w, 5, "continue")
+				_writelni(w, 4, "}")
+
 				writeDecoderCall(w, "data", "decoded", &endpoint.In, 2)
 				_writelni(w, 4, "request.Data <- decoded")
 				_writelni(w, 3, "}")

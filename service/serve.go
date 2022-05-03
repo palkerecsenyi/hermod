@@ -7,18 +7,18 @@ import (
 	"net/http"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize: 1024, WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
-
 type handler struct {
 	config *HermodConfig
 }
 
 func serveConnection(config *HermodConfig, w http.ResponseWriter, r *http.Request) {
+	upgrader := websocket.Upgrader{
+		HandshakeTimeout: config.WSHandshakeTimeout,
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		_, _ = w.Write([]byte("This Hermod server only handles WebSocket requests."))
@@ -51,27 +51,34 @@ func serveConnection(config *HermodConfig, w http.ResponseWriter, r *http.Reques
 		c <- true
 	}(done)
 
-	for {
-		select {
-		case <-done:
-			close(request.Data)
-			return
-		default:
-			messageType, data, err := conn.ReadMessage()
-			if err != nil {
-				wsSendError(conn, errors.New("400: message could not be read"))
+	go func(r *Request) {
+		for {
+			select {
+			case <-r.Context.Done():
 				return
-			}
-
-			if messageType == websocket.TextMessage {
-				data, err = base64.StdEncoding.DecodeString(string(data))
+			case <-done:
+				return
+			default:
+				messageType, data, err := conn.ReadMessage()
 				if err != nil {
-					wsSendError(conn, errors.New("400: base64-encoded message could not be read"))
+					wsSendError(conn, errors.New("400: message could not be read"))
 					return
 				}
-			}
 
-			request.Data <- &data
+				// If the message is text-based (for some reason), assume it's base64-encoded
+				if messageType == websocket.TextMessage {
+					data, err = base64.StdEncoding.DecodeString(string(data))
+					if err != nil {
+						wsSendError(conn, errors.New("400: base64-encoded message could not be read"))
+						return
+					}
+				}
+
+				r.Data <- &data
+			}
 		}
-	}
+	}(&request)
+
+	<-done
+	close(request.Data)
 }

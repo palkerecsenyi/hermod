@@ -13,6 +13,7 @@ type Request struct {
 }
 
 type Response struct {
+	// you're not supposed to write concurrently to a WebSocket connection
 	sync.Mutex
 	sendFunction func(data *[]byte, error bool)
 }

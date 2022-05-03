@@ -34,18 +34,16 @@ func serveWsConnection(req *Request, res *Response) {
 				ack.endpointId = frame.endpointId
 
 				ack.clientId = encoder.SliceToU32(data[3:7])
-				sessionId, err := sessions.newSessionId()
+
+				var err error
+				frame.sessionId, err = sessions.createNewSession()
 				if err != nil {
-					res.SendError(err)
+					errorFrame := createErrorClient(ack.endpointId, ack.clientId, err.Error())
+					res.Send(&errorFrame)
 					continue
 				}
 
-				err = sessions.createChannel(sessionId)
-				if err != nil {
-					log.Fatalln(err)
-				}
-
-				res.Send(ack.ack(sessionId))
+				res.Send(ack.ack(frame.sessionId))
 				sessions.initiateNewSession(req, res, frame, endpoint)
 				continue
 			}
@@ -54,7 +52,8 @@ func serveWsConnection(req *Request, res *Response) {
 			sessionChannel, err := sessions.getChannel(frame.sessionId)
 
 			if err != nil {
-				res.SendError(err)
+				errorFrame := createErrorSession(frame.endpointId, frame.sessionId, err.Error())
+				res.Send(&errorFrame)
 				continue
 			}
 

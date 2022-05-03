@@ -1,14 +1,17 @@
 package service
 
-import "github.com/palkerecsenyi/hermod/encoder"
+import (
+	"github.com/palkerecsenyi/hermod/encoder"
+)
 
 const (
-	// Data flag is not just 0b00000000 so that it can clearly be distinguished in logs
-	Data                 = 0b10101010
-	ClientSessionRequest = 0b00001111
-	ServerSessionAck     = 0b11110000
-	Close                = 0b11111111
-	CloseAck             = 0b11111110
+	Data                 = 0
+	ClientSessionRequest = 1
+	ServerSessionAck     = 2
+	Close                = 3
+	CloseAck             = 4
+	ErrorClientID        = 5
+	ErrorSessionID       = 6
 )
 
 type messageFrame struct {
@@ -16,6 +19,28 @@ type messageFrame struct {
 	flag       uint8
 	sessionId  uint32
 	data       []byte
+}
+
+func createErrorClient(endpointId uint16, clientId uint32, message string) []byte {
+	errorFrame := messageFrame{
+		endpointId: endpointId,
+		sessionId:  clientId,
+		flag:       ErrorClientID,
+		data:       []byte(message),
+	}
+
+	return errorFrame.encode()
+}
+
+func createErrorSession(endpointId uint16, sessionId uint32, message string) []byte {
+	errorFrame := messageFrame{
+		endpointId: endpointId,
+		sessionId:  sessionId,
+		flag:       ErrorSessionID,
+		data:       []byte(message),
+	}
+
+	return errorFrame.encode()
 }
 
 func (frame *messageFrame) encode() []byte {
