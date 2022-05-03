@@ -63,18 +63,18 @@ Similarly to Units, Fields also have an ID and a name. However, these don't have
 #### Types
 All Fields must have a type. Hermod provides a number of built-in primitives to leverage cross-platform support.
 
-| Type name (case-insensitive) | Max | Min |
-| ---------------------------- | --- | --- |
-| string |
-| boolean | 0xff | 0x00
-| tinyinteger | 255 | 0
-| smallinteger | 65535 | 0
-| integer | 4294967296 | 0
-| biginteger | 18446744073709552000 | 0
-| tinysignedinteger | 127 | -127
-| smallsignedinteger | 32767 | -32767
-| signedinteger | 2147483648 | -2147483648
-| bigsignedinteger | 9223372036854776000 | -9223372036854776000
+| Type name (case-insensitive) | Max                  | Min                  |
+|------------------------------|----------------------|----------------------|
+| string                       |                      |                      |
+| boolean                      | 0xff                 | 0x00                 |
+| tinyinteger                  | 255                  | 0                    |
+| smallinteger                 | 65535                | 0                    |
+| integer                      | 4294967296           | 0                    |
+| biginteger                   | 18446744073709552000 | 0                    |
+| tinysignedinteger            | 127                  | -127                 |
+| smallsignedinteger           | 32767                | -32767               |
+| signedinteger                | 2147483648           | -2147483648          |
+| bigsignedinteger             | 9223372036854776000  | -9223372036854776000 |
 
 While most programming languages call unsigned integers "unsigned integers", Hermod swaps the naming conventions to make unsigned numbers the 'default'. Databases in production applications store signed numbers much less often, and unsigned integers are considerably more efficient for storing data.
 
@@ -120,6 +120,7 @@ services:
   - name: MovieMetadata
     endpoints:
       - path: /movie/get-all
+        id: 0
         in:
           unit: MovieSearchQuery
         out:
@@ -128,7 +129,9 @@ services:
 ```
 
 ### Endpoints
-Endpoints are defined using a `path` field, which must be unique across your compilation context for each Endpoint. Paths must be in URL path format, similarly to the examples shown on this page. 
+Endpoints are defined using a `path` field, which must be unique across your compilation context for each Endpoint. Paths must be in URL path format, similarly to the examples shown on this page.
+
+Similarly, endpoints also contain an `id` field that must be unique across the compilation context.
 
 Keep in mind that, when generating code, the Hermod compiler will reverse your path name: `/profile/get` will become `GetProfileRequest{}` (or something similar).
 
@@ -140,14 +143,18 @@ Both arguments are optional. All of these constructs are valid:
 ...
     endpoints:
       - path: /movie/get-latest
+        id: 0
         out:
           unit: Movie
       - path: /analytics/pageview
+        id: 1
       - path: /movie/add-multiple-comments
+        id: 2
         in:
           unit: CommentData
           streamed: true
       - path: /chat/live
+        id: 3
         in:
           unit: Message
           streamed: true

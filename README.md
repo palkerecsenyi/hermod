@@ -7,11 +7,11 @@ Hermod lets you use really simple YAML to define Units (i.e., `message MyMessage
 This repository contains the original Go version of Hermod. It contains code to compile YAML into Go, as well as the encoder and WebSocket server needed to host RPCs.
 
 ## Why?
-gRPC is an amazing framework, and is perfect for providing blazing-fast highly-optimised RPC communication. However, we find the lack of native frontend support to be a considerable obstacle — both in terms of performance and developer convenience.
+gRPC is an amazing framework, and is perfect for providing blazing-fast highly-optimised RPC communication. However, it relies on a proxy for web client use, which is hard to justify for smaller projects.
 
-Hermod uses WebSockets (and in the future, HTTP/3 WebTransports) rather than HTTP/2 (which isn't always available). They're a robust, widely-used set of protocols that work across all devices, and are even relatively efficient for cross-server communication.
+Hermod uses WebSocket rather than HTTP/2 (which isn't always available). It's a proven and widely-used protocol with [very little framing](https://www.rfc-editor.org/rfc/rfc6455.html#section-5.2), meaning little overhead. Hermod lets you use a single WebSocket connection between a client and a server, and simply open and close lightweight 'sessions' within it. For more details, see the [Hermod Protocol](https://github.com/palkerecsenyi/hermod/blob/main/PROTOCOL.md).
 
-Hermod tries to be better suited to building a full browser-facing API than gRPC is at the moment. To keep things simple, it doesn't build a complex protocol on top of HTTP, and instead merely uses WebSockets to transmit binary data.
+Hermod tries to be better suited to building a full browser-facing API than gRPC is at the moment (although it works for server-server communication, too). It's much less complex or full-featured than other RPC frameworks, but includes all the essential features you need!
 
 Hermod is also a [Norse messenger god](https://en.wikipedia.org/wiki/Herm%C3%B3%C3%B0r), unlike gRPC.
 

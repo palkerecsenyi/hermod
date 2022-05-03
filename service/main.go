@@ -31,7 +31,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	serveConnection(h.config, w, r)
+	ServeConnection(h.config, w, r)
 }
 
 type HermodConfig struct {

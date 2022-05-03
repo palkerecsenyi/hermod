@@ -11,7 +11,11 @@ type handler struct {
 	config *HermodConfig
 }
 
-func serveConnection(config *HermodConfig, w http.ResponseWriter, r *http.Request) {
+// ServeConnection is made public to allow Hermod users to manually choose when to upgrade an HTTP connection to WebSocket/Hermod.
+// Pass in the same HermodConfig as with service.StartServer, as well as http.ResponseWriter and http.Request, and ServeConnection
+// will attempt to upgrade the HTTP connection to a WebSocket, and start responding to Hermod requests. ServeConnection will
+// continue blocking until the WebSocket connection closes (e.g. if the underlying http.Request's context ends)
+func ServeConnection(config *HermodConfig, w http.ResponseWriter, r *http.Request) {
 	upgrader := websocket.Upgrader{
 		HandshakeTimeout: config.WSHandshakeTimeout,
 		CheckOrigin: func(r *http.Request) bool {
