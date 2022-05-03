@@ -9,6 +9,7 @@ import (
 
 type handler struct {
 	config *HermodConfig
+	path   string
 }
 
 // ServeConnection is made public to allow Hermod users to manually choose when to upgrade an HTTP connection to WebSocket/Hermod.
