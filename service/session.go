@@ -60,18 +60,17 @@ func (c *connectionSessions) getChannel(sessionId uint32) (chan *[]byte, error) 
 }
 
 func (c *connectionSessions) endSession(sessionId uint32) error {
-	c.Lock()
-	defer c.Unlock()
-
 	channel, err := c.getChannel(sessionId)
 	if err != nil {
 		return err
 	}
 
+	c.Lock()
 	// these must happen together to avoid duplicate channel closure (a fatal error)
 	// therefore, these calls should only be made through a call to this endSession function
 	close(channel)
 	delete(c.sessions, sessionId)
+	c.Unlock()
 	return nil
 }
 
