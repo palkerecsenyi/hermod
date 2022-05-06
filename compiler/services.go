@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/iancoleman/strcase"
+	"log"
 	"strings"
 )
 
@@ -31,6 +32,7 @@ func writeRequest(w *bytes.Buffer, publicPathName string, includeData bool) {
 	}
 	_writelni(w, 3, "Context: req.Context,")
 	_writelni(w, 3, "Headers: req.Headers,")
+	_writelni(w, 3, "Auth: req.Auth,")
 	_writelni(w, 2, "}")
 }
 
@@ -66,12 +68,20 @@ func writeService(w *bytes.Buffer, service *serviceDefinition, packageName strin
 			publicPathName = strcase.ToCamel(component) + publicPathName
 		}
 
+		if endpoint.Id == 0xFFFF {
+			log.Fatalln("encountered endpoint with illegal ID 0xFFFF")
+			return
+		}
+
 		_writeln(w, fmt.Sprintf("type %s_Request struct {", publicPathName))
 		writeArgumentDefinition(w, &endpoint.In)
+
 		imports = append(imports, "context")
 		imports = append(imports, "net/http")
+		imports = append(imports, fmt.Sprintf("%s/service", packageName))
 		_writelni(w, 1, "Context context.Context")
 		_writelni(w, 1, "Headers http.Header")
+		_writelni(w, 1, "Auth *service.AuthAPI")
 		_writeln(w, fmt.Sprintf("}"))
 
 		_writeln(w, fmt.Sprintf("type %s_Response struct {", publicPathName))
@@ -91,8 +101,6 @@ func writeService(w *bytes.Buffer, service *serviceDefinition, packageName strin
 		}
 
 		_writeln(w, fmt.Sprintf("func Register%sHandler(handler func(req *%s_Request, res *%s_Response) error) {", publicPathName, publicPathName, publicPathName))
-
-		imports = append(imports, fmt.Sprintf("%s/service", packageName))
 		_writelni(w, 1, fmt.Sprintf("service.RegisterEndpoint(%d, func(req *service.Request, res *service.Response) {", endpoint.Id))
 		_writelni(w, 2, fmt.Sprintf("response := %s_Response{", publicPathName))
 		_writelni(w, 3, "sendFunction: res.Send,")

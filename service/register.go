@@ -10,6 +10,11 @@ type Request struct {
 	Context context.Context
 	Data    chan *[]byte
 	Headers http.Header
+
+	// Auth will be nil if authentication hasn't been set up in HermodConfig or if the WebSocket connection doesn't have
+	// an authentication session assigned to it (either because there was no initial Authorization header or no Hermod
+	// messages with the Authentication flag has been received)
+	Auth *AuthAPI
 }
 
 type Response struct {

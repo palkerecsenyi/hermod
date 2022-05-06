@@ -12,6 +12,9 @@ func newSessionsStruct() connectionSessions {
 	}
 }
 
+// connectionSessions keeps track of all sessions within a single WebSocket connection.
+// Uses sync.RWMutex since the sessions map is written to/read from concurrently by a goroutine that is launched
+// for each endpoint function call (which occurs once for each session).
 type connectionSessions struct {
 	sync.RWMutex
 	sessions map[uint32]chan *[]byte
@@ -84,6 +87,7 @@ func (c *connectionSessions) initiateNewSession(req *Request, res *Response, fra
 		Context: req.Context,
 		Data:    channel,
 		Headers: req.Headers,
+		Auth:    req.Auth,
 	}
 	forwardRes := Response{
 		sendFunction: func(dataToSend *[]byte, error bool) {

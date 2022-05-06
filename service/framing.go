@@ -1,6 +1,7 @@
 package service
 
 import (
+	"crypto/sha256"
 	"github.com/palkerecsenyi/hermod/encoder"
 )
 
@@ -12,7 +13,12 @@ const (
 	CloseAck             = 4
 	ErrorClientID        = 5
 	ErrorSessionID       = 6
+	Authentication       = 7
+	AuthenticationAck    = 8
 )
+
+// AuthenticationEndpoint is a phantom endpoint that's used to signify an authentication message
+const AuthenticationEndpoint = 0xFFFF
 
 type messageFrame struct {
 	endpointId uint16
@@ -99,4 +105,22 @@ func (frame *sessionFrame) ack(sessionId uint32) *[]byte {
 	}
 	encoded := m.encode()
 	return &encoded
+}
+
+type authenticationAckFrame struct {
+	tokenHash [32]byte
+}
+
+func authenticationAck(token string) authenticationAckFrame {
+	return authenticationAckFrame{
+		tokenHash: sha256.Sum256([]byte(token)),
+	}
+}
+
+func (frame *authenticationAckFrame) encode() *[]byte {
+	var data []byte
+	data = *encoder.Add16ToSlice(AuthenticationEndpoint, &data)
+	data = append(data, AuthenticationAck)
+	data = append(data, frame.tokenHash[:]...)
+	return &data
 }

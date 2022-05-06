@@ -37,6 +37,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type HermodConfig struct {
 	WSHandshakeTimeout time.Duration
+	// AuthenticationConfig is optional, you can use it to enable a highly opinionated JWT-based authentication system.
+	// If you want anything custom, you'll need to build it on your own for now!
+	AuthenticationConfig *HermodAuthenticationConfig
 }
 
 type HermodHTTPConfig struct {

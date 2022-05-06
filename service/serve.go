@@ -52,7 +52,7 @@ func ServeConnection(config *HermodConfig, w http.ResponseWriter, r *http.Reques
 
 	done := make(chan bool)
 	go func(c chan bool) {
-		serveWsConnection(&request, &response)
+		serveWsConnection(&request, &response, r.URL.Query(), config)
 		c <- true
 	}(done)
 

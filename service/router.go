@@ -1,14 +1,23 @@
 package service
 
 import (
-	"errors"
+	"fmt"
 	"github.com/palkerecsenyi/hermod/encoder"
 	"log"
+	"net/url"
 )
 
-func serveWsConnection(req *Request, res *Response) {
+func serveWsConnection(req *Request, res *Response, query url.Values, config *HermodConfig) {
 	// sessions are specific to a particular WS connection
 	sessions := newSessionsStruct()
+
+	if authQuery := query.Get("token"); authQuery != "" {
+		err := setupRequestAuthorization(req, authQuery, config)
+		if err != nil {
+			res.SendError(err)
+			return
+		}
+	}
 
 	var _data *[]byte
 	for {
@@ -22,13 +31,12 @@ func serveWsConnection(req *Request, res *Response) {
 
 			frame.endpointId = encoder.SliceToU16(data[0:2])
 			endpoint, ok := endpointRegistrations[frame.endpointId]
-			if !ok {
-				res.SendError(errors.New("endpoint not found"))
+			if !ok && frame.endpointId != AuthenticationEndpoint {
+				res.SendError(fmt.Errorf("endpoint %d not found", frame.endpointId))
 				continue
 			}
 
 			frame.flag = data[2]
-
 			if frame.flag == ClientSessionRequest {
 				ack := sessionFrame{}
 				ack.endpointId = frame.endpointId
@@ -45,6 +53,24 @@ func serveWsConnection(req *Request, res *Response) {
 
 				res.Send(ack.ack(frame.sessionId))
 				sessions.initiateNewSession(req, res, frame, endpoint)
+				continue
+			}
+
+			if frame.endpointId == AuthenticationEndpoint {
+				if frame.flag != Authentication {
+					res.SendError(fmt.Errorf("made AuthenticationEndpoint request without using the Authentication flag"))
+					return
+				}
+
+				token := string(data[3:])
+				err := setupRequestAuthorization(req, token, config)
+				if err != nil {
+					res.SendError(err)
+					return
+				}
+
+				ackFrame := authenticationAck(token)
+				res.Send(ackFrame.encode())
 				continue
 			}
 
