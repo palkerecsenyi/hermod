@@ -55,7 +55,7 @@ func writeHandlerCall(w *bytes.Buffer, errIsNew bool, doneCall bool, indentModif
 func writeDecoderCall(w *bytes.Buffer, in string, out string, inArgument *endpointArgumentDefinition, indentModifier int) {
 	_writelni(w, 2+indentModifier, fmt.Sprintf("%s, err := Decode%s(%s)", out, getArgumentDataType(inArgument), in))
 	_writelni(w, 2+indentModifier, "if err != nil {")
-	_writelni(w, 3+indentModifier, "res.SendError(errors.New(\"couldn't decode data\"))")
+	_writelni(w, 3+indentModifier, "res.SendError(fmt.Errorf(\"handler for endpoint with ID %d failed to decode incoming message: %s\", endpointId, err.Error()))")
 	_writelni(w, 3+indentModifier, "return")
 	_writelni(w, 2+indentModifier, "}")
 }
@@ -101,13 +101,14 @@ func writeService(w *bytes.Buffer, service *serviceDefinition, packageName strin
 		}
 
 		_writeln(w, fmt.Sprintf("func Register%sHandler(handler func(req *%s_Request, res *%s_Response) error) {", publicPathName, publicPathName, publicPathName))
-		_writelni(w, 1, fmt.Sprintf("service.RegisterEndpoint(%d, func(req *service.Request, res *service.Response) {", endpoint.Id))
+		_writelni(w, 1, fmt.Sprintf("endpointId := uint16(%d)", endpoint.Id))
+		_writelni(w, 1, "service.RegisterEndpoint(endpointId, func(req *service.Request, res *service.Response) {")
 		_writelni(w, 2, fmt.Sprintf("response := %s_Response{", publicPathName))
 		_writelni(w, 3, "sendFunction: res.Send,")
 		_writelni(w, 2, "}")
 
 		if endpoint.In.UnitName != "" {
-			imports = append(imports, "errors")
+			imports = append(imports, "fmt")
 			if endpoint.In.Streamed {
 				_writelni(w, 2, fmt.Sprintf("d := make(chan *%s)", getArgumentDataType(&endpoint.In)))
 				writeRequest(w, publicPathName, true)
