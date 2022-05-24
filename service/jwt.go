@@ -61,7 +61,8 @@ func (config *HermodAuthenticationConfig) ParseToken(token string) (*jwt.Token, 
 }
 
 // HydrateToken is a convenience method to parse and validate a JWT and to then 'hydrate' the token. It returns both
-// the hydrated token and the raw parsed JWT. It will return an error if the JWT is not valid.
+// the hydrated token and the raw parsed JWT. It will return an error if the JWT is not valid. The type of the hydrated
+// token is inferred from the type parameter on HermodAuthenticationConfig.
 func (config *HermodAuthenticationConfig[K]) HydrateToken(token string) (K, *jwt.Token, error) {
 	parsedToken, err := config.ParseToken(token)
 	if err != nil {
