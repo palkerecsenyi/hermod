@@ -21,8 +21,8 @@ type String string
 
 type Boolean uint8
 
-var True = Boolean(0xff)
-var False = Boolean(0x00)
+const True = Boolean(0xff)
+const False = Boolean(0x00)
 
 func encodeValue(value FieldValue, repeated bool) ([]byte, error) {
 	if value.Value == nil {
