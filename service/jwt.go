@@ -6,7 +6,10 @@ import (
 	"sync"
 )
 
-type HermodAuthenticationConfig struct {
+// HermodAuthenticationConfig lets you set up and define parameters for Hermod's JWT-based authentication system. This is
+// highly opinionated, and you don't have to use it! You can also use Hermod's authentication system outside of Hermod
+// connections by using the public methods exposed by HermodAuthenticationConfig.
+type HermodAuthenticationConfig[K any] struct {
 	// SigningMethod must be defined. It's a function that returns true if the signing method of the token is what you
 	// want it to be, and false if not.
 	SigningMethod func(*jwt.Token) bool
@@ -16,7 +19,7 @@ type HermodAuthenticationConfig struct {
 	SecretProvider func(*jwt.Token) ([]byte, error)
 
 	// TokenHydrator must be defined. It returns a custom type based on a map of pre-validated JWT claims.
-	TokenHydrator func(jwt.MapClaims) (any, error)
+	TokenHydrator func(jwt.MapClaims) (K, error)
 
 	// UseCache determines whether to cache hydrated tokens. If false, only the raw JWT token will be saved for each
 	// connection and must be rehydrated each time your code asks for it. If your hydrated value is unlikely to change during
@@ -40,43 +43,57 @@ func newAuthProviderFromConfig(authConfig *HermodAuthenticationConfig) *authProv
 	}
 }
 
-func (provider *authProvider) verifyAndStoreToken(token string) error {
-	provider.Lock()
-	defer provider.Unlock()
-
-	providerConfig := provider.config
-	parsedToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
-		if provider.config.SigningMethod(token) == false {
+// ParseToken parses a JWT token, returning the parsed token object. It will use your specified secret and use the
+// HermodAuthenticationConfig.SigningMethod function to determine whether the correct signing method is used.
+// It does not check whether the token is valid. You can use jwt.Token.Valid to do this.
+func (config *HermodAuthenticationConfig) ParseToken(token string) (*jwt.Token, error) {
+	return jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
+		if config.SigningMethod(token) == false {
 			return nil, fmt.Errorf("unexpected signing method %v", token.Header["alg"])
 		}
 
-		if providerConfig.SecretProvider != nil {
-			return providerConfig.SecretProvider(token)
+		if config.SecretProvider != nil {
+			return config.SecretProvider(token)
 		}
 
-		return providerConfig.Secret, nil
+		return config.Secret, nil
 	})
+}
 
+// HydrateToken is a convenience method to parse and validate a JWT and to then 'hydrate' the token. It returns both
+// the hydrated token and the raw parsed JWT. It will return an error if the JWT is not valid.
+func (config *HermodAuthenticationConfig[K]) HydrateToken(token string) (K, *jwt.Token, error) {
+	parsedToken, err := config.ParseToken(token)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	if claims, ok := parsedToken.Claims.(jwt.MapClaims); ok && parsedToken.Valid {
 		// we run this even if we're not going to cache the hydrated token, in case we need to validate the existence of
 		// a user (e.g. in a database)
-		hydratedToken, err := providerConfig.TokenHydrator(claims)
-		if err != nil {
-			return err
-		}
-
-		if providerConfig.UseCache {
-			provider.hydratedToken = hydratedToken
-		}
-
-		provider.sessionToken = parsedToken
-	} else {
-		return fmt.Errorf("failed to parse and validate jwt")
+		hydratedToken, err := config.TokenHydrator(claims)
+		return hydratedToken, parsedToken, err
 	}
+
+	return nil, parsedToken, fmt.Errorf("jwt was not valid")
+}
+
+func (provider *authProvider) verifyAndStoreToken(token string) error {
+	provider.Lock()
+	defer provider.Unlock()
+
+	providerConfig := provider.config
+	hydratedToken, parsedToken, err := providerConfig.HydrateToken(token)
+
+	if err != nil {
+		return err
+	}
+
+	if providerConfig.UseCache {
+		provider.hydratedToken = hydratedToken
+	}
+
+	provider.sessionToken = parsedToken
 
 	return nil
 }
