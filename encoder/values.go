@@ -130,6 +130,15 @@ func decodeValue(field *Field, rawValue []byte) (interface{}, error) {
 	case "BigInteger":
 		return BigInteger(SliceToU64(rawValue)), nil
 
+	case "TinySignedInteger":
+		return TinySignedInteger(rawValue[0]), nil
+	case "SmallSignedInteger":
+		return SmallSignedInteger(SliceToU16(rawValue)), nil
+	case "SignedInteger":
+		return SignedInteger(SliceToU32(rawValue)), nil
+	case "BigSignedInteger":
+		return BigSignedInteger(SliceToU64(rawValue)), nil
+
 	case "String":
 		return String(rawValue), nil
 

@@ -3,6 +3,7 @@ package compiler
 import (
 	"bytes"
 	"fmt"
+	"go/format"
 	"os"
 	"path"
 	"sort"
@@ -49,11 +50,20 @@ func outputConfig(config *config, file file, configs []*fileConfigPair, outPath,
 	_ = f.Truncate(0)
 
 	var imports []string
+	for _, importPackage := range config.Import {
+		imports = append(imports, importPackage)
+	}
+
 	var contentBuffer bytes.Buffer
 	for _, unit := range config.Units {
-		imports, err = writeUnit(configs, &contentBuffer, &unit, packageName)
+		newImports, err := writeUnit(configs, &contentBuffer, &unit, packageName)
 		if err != nil {
 			return err
+		}
+		imports = append(imports, newImports...)
+
+		for _, importPackage := range unit.Import {
+			imports = append(imports, importPackage)
 		}
 	}
 
@@ -73,9 +83,15 @@ func outputConfig(config *config, file file, configs []*fileConfigPair, outPath,
 	}
 	_writeln(&importBuffer, ")")
 
+	byteSlice := importBuffer.Bytes()
+	byteSlice = append(byteSlice, contentBuffer.Bytes()...)
+	byteSlice, err = format.Source(byteSlice)
+	if err != nil {
+		return err
+	}
+
 	_, _ = f.Seek(0, 0)
-	_, _ = importBuffer.WriteTo(f)
-	_, _ = contentBuffer.WriteTo(f)
+	_, _ = f.Write(byteSlice)
 	_ = f.Sync()
 	return nil
 }

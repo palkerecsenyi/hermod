@@ -20,7 +20,7 @@ func writeUnit(configs []*fileConfigPair, w *bytes.Buffer, unit *unitDefinition,
 	for _, field := range unit.Fields {
 		fieldTypeName, err = findTypeName(field.RawType, field.Repeated, configs)
 		if err != nil {
-			return
+			return nil, err
 		}
 
 		_writelni(w, 2, "{")
@@ -38,14 +38,24 @@ func writeUnit(configs []*fileConfigPair, w *bytes.Buffer, unit *unitDefinition,
 
 	publicName := strcase.ToCamel(unit.Name)
 	_writeln(w, fmt.Sprintf("type %s struct {", publicName))
+
+	for _, embed := range unit.Embed {
+		_writelni(w, 1, embed)
+	}
+
 	for _, field := range unit.Fields {
 		fieldName := strcase.ToCamel(field.Name)
 		fieldTypeName, err = findTypeName(field.RawType, field.Repeated, configs)
 		if err != nil {
-			return
+			return nil, err
 		}
 
-		_writelni(w, 1, fmt.Sprintf("%s\t%s", fieldName, fieldTypeName))
+		tagString := ""
+		if field.StructTag != "" {
+			tagString = fmt.Sprintf("`%s`", field.StructTag)
+		}
+
+		_writelni(w, 1, fmt.Sprintf("%s\t%s %s", fieldName, fieldTypeName, tagString))
 	}
 	_writeln(w, "}")
 

@@ -106,6 +106,48 @@ By default, Fields are encoded with a 32-bit header to specify their length in b
 
 Extended Fields can still be repeated. However, keep in mind that this adds a significant size overhead, which is very inefficient if your Fields aren't regularly going over the 2^32 length limit.
 
+### Go-specific features
+Hermod adds some extra utilities you can use to make your Go development even more streamlined. When compiling for any language, these will just get ignored.
+
+#### Tags
+Go uses struct tags for things like JSON marshalling or some ORM packages. You can make Hermod automatically add these to your Go struct by adding a field:
+```yaml
+...
+    fields:
+      - name: password
+        id: 5
+        type: string
+        tag: json:"password,omitempty"
+```
+
+#### Embedded structs (and imports)
+You can make Hermod embed another struct inside the one being created for your Unit. This is useful for [GORM](https://gorm.io/docs/models.html#embedded_struct) for example. You'll usually also need to import a package to make this work, so you can use the `import` keyword. Imports are de-duplicated at compile time.
+
+You can specify multiple embeds and imports and Hermod will embed/import all of them for you.
+
+Of course, embedded field values don't actually get encoded by Hermod — they're just for your convenience.
+
+```yaml
+units:
+  - name: User
+    id: 0
+    import: 
+      - gorm.io/gorm
+    embed:
+      - gorm.Model
+    fields:
+      ...
+```
+
+You can also use an `import` at the package level:
+```yaml
+package: example
+import: 
+  - gorm.io/gorm
+units:
+  ...
+```
+
 ## Services
 
 At the moment, a `Service` in itself has no significance beyond grouping multiple endpoints under a common name. However, we're adding the construct in for forwards-compatibility, in case it becomes helpful to group Endpoints like this.
