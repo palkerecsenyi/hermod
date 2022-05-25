@@ -9,7 +9,7 @@ import (
 // HermodAuthenticationConfig lets you set up and define parameters for Hermod's JWT-based authentication system. This is
 // highly opinionated, and you don't have to use it! You can also use Hermod's authentication system outside of Hermod
 // connections by using the public methods exposed by HermodAuthenticationConfig.
-type HermodAuthenticationConfig[K any] struct {
+type HermodAuthenticationConfig struct {
 	// SigningMethod must be defined. It's a function that returns true if the signing method of the token is what you
 	// want it to be, and false if not.
 	SigningMethod func(*jwt.Token) bool
@@ -19,7 +19,7 @@ type HermodAuthenticationConfig[K any] struct {
 	SecretProvider func(*jwt.Token) ([]byte, error)
 
 	// TokenHydrator must be defined. It returns a custom type based on a map of pre-validated JWT claims.
-	TokenHydrator func(jwt.MapClaims) (K, error)
+	TokenHydrator func(jwt.MapClaims) (any, error)
 
 	// UseCache determines whether to cache hydrated tokens. If false, only the raw JWT token will be saved for each
 	// connection and must be rehydrated each time your code asks for it. If your hydrated value is unlikely to change during
@@ -63,7 +63,7 @@ func (config *HermodAuthenticationConfig) ParseToken(token string) (*jwt.Token, 
 // HydrateToken is a convenience method to parse and validate a JWT and to then 'hydrate' the token. It returns both
 // the hydrated token and the raw parsed JWT. It will return an error if the JWT is not valid. The type of the hydrated
 // token is inferred from the type parameter on HermodAuthenticationConfig.
-func (config *HermodAuthenticationConfig[K]) HydrateToken(token string) (K, *jwt.Token, error) {
+func (config *HermodAuthenticationConfig) HydrateToken(token string) (any, *jwt.Token, error) {
 	parsedToken, err := config.ParseToken(token)
 	if err != nil {
 		return nil, nil, err
