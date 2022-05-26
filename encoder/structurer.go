@@ -6,6 +6,8 @@ import (
 	"reflect"
 )
 
+// UserFacingHermodUnit is what the end user of generated Hermod code actually sees. It also contains some functions
+// that are intended for the Hermod encoder.
 type UserFacingHermodUnit interface {
 	GetDefinition() *Unit
 	DecodeAbstract(data *[]byte) (UserFacingHermodUnit, error)

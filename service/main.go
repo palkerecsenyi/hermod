@@ -1,3 +1,20 @@
+// Package service provides a server and an application-layer protocol for transmitting encoded Hermod units. It does
+// not provide a client (at the moment).
+//
+// You can use `service` by adding service endpoints to Hermod YAML files and then calling the generated Register<name>()
+// function to register an endpoint handler. This will get called whenever a client requests that endpoint. Endpoints
+// have fairly simple interfaces that work in a similar way to net/http, giving you a request and response object. Any
+// errors returned within endpoint handlers are sent as encoded error objects to the client.
+//
+// The package also provides a JWT-based authentication system. This allows clients to send a JWT along with their request,
+// either as a query parameter in the initial session establishment request, or as a separate authentication packet at any
+// time during the request. For more details see HermodAuthenticationConfig.
+//
+// The server provided by the package is designed to be used to open a single WebSocket connection between a client and the
+// server. All Hermod requests should be transmitted over that single connection to avoid the overhead of performing a
+// WebSocket handshake. To that effect, you can either call StartServer to start a full HTTP server or you can use
+// ServeConnection to manually perform WebSocket upgrades using your existing HTTP server, allowing you to use conventional
+// HTTP endpoints at the same time as your Hermod endpoint.
 package service
 
 import (
