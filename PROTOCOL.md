@@ -3,6 +3,9 @@ The Hermod Protocol is a messaging and RPC protocol built on top of WebSocket. I
 
 It involves a simple handshake, bi-directional messaging, error handling, and closing. The idea is to support many sessions between a server and client over a single WebSocket connection to reduce overhead.
 
+## Integers
+Hermod uses big-endian integers, both in message headers and in the contained data itself. This is in line with most other network protocols.
+
 ## Basic message structure
 All binary WebSocket messages must include the Endpoint ID (a 16-bit unsigned integer). This is defined in the Hermod YAML file. Both the server and client must have the same compiled Hermod YAML configuration so that they mutually understand the Endpoint that an ID refers to.
 

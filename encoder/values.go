@@ -77,12 +77,9 @@ func encodeValue(value FieldValue, repeated bool) ([]byte, error) {
 			return nil, err
 		}
 		return *encodedUnit, nil
-	} else {
-		fmt.Println(reflect.TypeOf(value.Value).NumMethod())
-		fmt.Println(value.Value)
 	}
 
-	return nil, errors.New(fmt.Sprintf("type not supported for value %s", value.Value))
+	return nil, fmt.Errorf("type not supported for value %s", value.Value)
 }
 
 func decodeValue(field *Field, rawValue []byte) (interface{}, error) {

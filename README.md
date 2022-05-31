@@ -6,6 +6,8 @@ Hermod lets you use really simple YAML to define Units (i.e., `message MyMessage
 
 This repository contains the original Go version of Hermod. It contains code to compile YAML into Go, as well as the encoder and WebSocket server needed to host RPCs.
 
+**Hermod is still in an alpha stage**. As with any complex communications protocol, it needs to undergo a lot of testing and refinement before production use can be recommended. For now, feel free to play with Hermod and try breaking it, but don't use it to build your mission-critical infrastructure.
+
 ## Why?
 gRPC is an amazing framework, and is perfect for providing blazing-fast highly-optimised RPC communication. However, it relies on a proxy for web client use, which is hard to justify for smaller projects.
 
