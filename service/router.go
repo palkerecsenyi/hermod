@@ -75,13 +75,6 @@ func serveWsConnection(req *Request, res *Response, query url.Values, config *He
 			}
 
 			frame.sessionId = encoder.SliceToU32(data[3:7])
-			sessionChannel, err := sessions.getChannel(frame.sessionId)
-
-			if err != nil {
-				errorFrame := createErrorSession(frame.endpointId, frame.sessionId, err.Error())
-				res.Send(&errorFrame)
-				continue
-			}
 
 			if frame.flag == Close {
 				// if there's an error, the session has probably been closed automatically
@@ -91,6 +84,13 @@ func serveWsConnection(req *Request, res *Response, query url.Values, config *He
 			}
 
 			if frame.flag == CloseAck {
+				continue
+			}
+
+			sessionChannel, err := sessions.getChannel(frame.sessionId)
+			if err != nil {
+				errorFrame := createErrorSession(frame.endpointId, frame.sessionId, err.Error())
+				res.Send(&errorFrame)
 				continue
 			}
 
