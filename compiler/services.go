@@ -135,7 +135,11 @@ func writeService(w *bytes.Buffer, service *serviceDefinition, packageName strin
 				_writelni(w, 3, "}")
 				_writelni(w, 2, "}")
 			} else {
-				_writelni(w, 2, "initialData := <-req.Data")
+				_writelni(w, 2, "initialData, ok := <-req.Data")
+				_writelni(w, 2, "if !ok {")
+				_writelni(w, 3, "return")
+				_writelni(w, 2, "}")
+
 				writeDecoderCall(w, "initialData", "d", &endpoint.In, 0)
 
 				writeRequest(w, publicPathName, true)

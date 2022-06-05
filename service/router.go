@@ -79,11 +79,6 @@ func serveWsConnection(req *Request, res *Response, query url.Values, config *He
 			if frame.flag == Close {
 				// if there's an error, the session has probably been closed automatically
 				_ = sessions.endSession(frame.sessionId)
-				res.Send(frame.closeAck())
-				continue
-			}
-
-			if frame.flag == CloseAck {
 				continue
 			}
 

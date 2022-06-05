@@ -10,11 +10,10 @@ const (
 	ClientSessionRequest = 1
 	ServerSessionAck     = 2
 	Close                = 3
-	CloseAck             = 4
-	ErrorClientID        = 5
-	ErrorSessionID       = 6
-	Authentication       = 7
-	AuthenticationAck    = 8
+	ErrorClientID        = 4
+	ErrorSessionID       = 5
+	Authentication       = 6
+	AuthenticationAck    = 7
 )
 
 // AuthenticationEndpoint is a phantom endpoint that's used to signify an authentication message
@@ -62,17 +61,6 @@ func (frame *messageFrame) close() *[]byte {
 	m := messageFrame{
 		endpointId: frame.endpointId,
 		flag:       Close,
-		sessionId:  frame.sessionId,
-		data:       []byte{},
-	}
-	encoded := m.encode()
-	return &encoded
-}
-
-func (frame *messageFrame) closeAck() *[]byte {
-	m := messageFrame{
-		endpointId: frame.endpointId,
-		flag:       CloseAck,
 		sessionId:  frame.sessionId,
 		data:       []byte{},
 	}

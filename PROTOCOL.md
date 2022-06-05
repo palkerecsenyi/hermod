@@ -14,10 +14,9 @@ Messages must also contain a Flag that describes the intent or content of the me
 - `0000 0000` `Data`
 - `0000 0001` `ClientSessionRequest` — Client requesting a new session from server
 - `0000 0010` `ServerSessionAck` — Server confirming the new session to the client
-- `0000 0011` `Close` — Server/Client requesting other party to close the session
-- `0000 0100` `CloseAck` — Server/Client confirming to have closed the session in response to `Close`
-- `0000 0101` `ErrorClientID` — Server sending an error message during the handshake process before a Session ID has been assigned
-- `0000 0110` `ErrorSessionID` — Server sending an error message after a Session ID has been communicated to the client
+- `0000 0011` `Close` — Server/Client notifying other party that they now regard the session as closed
+- `0000 0100` `ErrorClientID` — Server sending an error message during the handshake process before a Session ID has been assigned
+- `0000 0101` `ErrorSessionID` — Server sending an error message after a Session ID has been communicated to the client
 
 An 8-bit number is used to allow for future extensions.
 
