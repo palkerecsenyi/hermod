@@ -18,7 +18,10 @@ Hermod tries to be better suited to building a full browser-facing API than gRPC
 Hermod is also a [Norse messenger god](https://en.wikipedia.org/wiki/Herm%C3%B3%C3%B0r), unlike gRPC.
 
 ## Installation
-To download the Hermod compiler, just go to [the Releases page](https://github.com/palkerecsenyi/hermod/releases). Download the compiler for your platform, rename it to `hermod`, and move it to a directory in your `PATH`.
+To download and install the Hermod compiler:
+1. Clone this repository
+2. Inside the repository, run `go install`
+3. Done! You can now run `hermod` anywhere.
 
 For information about using the compiler, run `hermod --help`.
 

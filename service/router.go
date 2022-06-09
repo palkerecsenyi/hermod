@@ -12,11 +12,13 @@ func serveWsConnection(req *Request, res *Response, query url.Values, config *He
 	sessions := newSessionsStruct()
 
 	if authQuery := query.Get("token"); authQuery != "" {
-		err := setupRequestAuthorization(req, authQuery, config)
+		api, err := setupRequestAuthentication(authQuery, config)
 		if err != nil {
 			res.SendError(err)
 			return
 		}
+
+		req.Auth = api
 	}
 
 	var _data *[]byte
@@ -33,11 +35,11 @@ func serveWsConnection(req *Request, res *Response, query url.Values, config *He
 			endpoint, ok := endpointRegistrations[frame.endpointId]
 			if !ok && frame.endpointId != AuthenticationEndpoint {
 				res.SendError(fmt.Errorf("endpoint %d not found", frame.endpointId))
-				continue
+				return
 			}
 
 			frame.flag = data[2]
-			if frame.flag == ClientSessionRequest {
+			if frame.flag == ClientSessionRequest || frame.flag == ClientSessionRequestWithAuth {
 				ack := sessionFrame{}
 				ack.endpointId = frame.endpointId
 
@@ -49,6 +51,36 @@ func serveWsConnection(req *Request, res *Response, query url.Values, config *He
 					errorFrame := createErrorClient(ack.endpointId, ack.clientId, err.Error())
 					res.Send(&errorFrame)
 					continue
+				}
+
+				if frame.flag == ClientSessionRequestWithAuth {
+					if len(data) == 7 {
+						errorFrame := createErrorClient(ack.endpointId, ack.clientId, "expected token but none specified")
+						res.Send(&errorFrame)
+						continue
+					}
+
+					token := string(data[7:])
+					if token == "" {
+						errorFrame := createErrorClient(ack.endpointId, ack.clientId, "token was empty")
+						res.Send(&errorFrame)
+						continue
+					}
+
+					var api *AuthAPI
+					api, err = setupRequestAuthentication(token, config)
+					if err != nil {
+						errorFrame := createErrorClient(ack.endpointId, ack.clientId, err.Error())
+						res.Send(&errorFrame)
+						continue
+					}
+
+					err = sessions.setSessionAuth(frame.sessionId, api.authProvider)
+					if err != nil {
+						errorFrame := createErrorClient(ack.endpointId, ack.clientId, err.Error())
+						res.Send(&errorFrame)
+						continue
+					}
 				}
 
 				res.Send(ack.ack(frame.sessionId))
@@ -63,11 +95,13 @@ func serveWsConnection(req *Request, res *Response, query url.Values, config *He
 				}
 
 				token := string(data[3:])
-				err := setupRequestAuthorization(req, token, config)
+				api, err := setupRequestAuthentication(token, config)
 				if err != nil {
 					res.SendError(err)
 					return
 				}
+
+				req.Auth = api
 
 				ackFrame := authenticationAck(token)
 				res.Send(ackFrame.encode())
@@ -82,7 +116,7 @@ func serveWsConnection(req *Request, res *Response, query url.Values, config *He
 				continue
 			}
 
-			sessionChannel, err := sessions.getChannel(frame.sessionId)
+			sd, err := sessions.getSessionData(frame.sessionId)
 			if err != nil {
 				errorFrame := createErrorSession(frame.endpointId, frame.sessionId, err.Error())
 				res.Send(&errorFrame)
@@ -96,7 +130,7 @@ func serveWsConnection(req *Request, res *Response, query url.Values, config *He
 					continue
 				}
 
-				sessionChannel <- &encodedUnit
+				sd.channel <- &encodedUnit
 			} else {
 				log.Printf("unrecognised flag %b\n", frame.flag)
 			}

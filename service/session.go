@@ -1,14 +1,13 @@
 package service
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 )
 
 func newSessionsStruct() connectionSessions {
 	return connectionSessions{
-		sessions: map[uint32]chan *[]byte{},
+		sessions: map[uint32]sessionData{},
 	}
 }
 
@@ -17,7 +16,12 @@ func newSessionsStruct() connectionSessions {
 // for each endpoint function call (which occurs once for each session).
 type connectionSessions struct {
 	sync.RWMutex
-	sessions map[uint32]chan *[]byte
+	sessions map[uint32]sessionData
+}
+
+type sessionData struct {
+	channel chan *[]byte
+	auth    *authProvider
 }
 
 func (c *connectionSessions) createNewSession() (uint32, error) {
@@ -33,60 +37,83 @@ func (c *connectionSessions) createNewSession() (uint32, error) {
 		}
 
 		if sessionId > 0xffffffff {
-			return 0, errors.New("no more session IDs available")
+			return 0, fmt.Errorf("no more session IDs available")
 		}
 	}
 
 	_, found := c.sessions[sessionId]
 	// just to double-check
 	if found {
-		return 0, errors.New(fmt.Sprintf("session id %d already in use", sessionId))
+		return 0, fmt.Errorf("session id %d already in use", sessionId)
 	}
 
-	c.sessions[sessionId] = make(chan *[]byte)
+	c.sessions[sessionId] = sessionData{
+		channel: make(chan *[]byte),
+	}
 	return sessionId, nil
 }
 
-func (c *connectionSessions) getChannel(sessionId uint32) (chan *[]byte, error) {
+func (c *connectionSessions) setSessionAuth(sessionId uint32, auth *authProvider) error {
+	c.Lock()
+	defer c.Unlock()
+
+	sd, ok := c.sessions[sessionId]
+	if !ok {
+		return fmt.Errorf("session id %d not found", sessionId)
+	}
+
+	sd.auth = auth
+	c.sessions[sessionId] = sd
+	return nil
+}
+
+func (c *connectionSessions) getSessionData(sessionId uint32) (*sessionData, error) {
 	c.RLock()
 	defer c.RUnlock()
 
-	channel, ok := c.sessions[sessionId]
+	sd, ok := c.sessions[sessionId]
 	if !ok {
-		return nil, errors.New(fmt.Sprintf("session id %d not found", sessionId))
+		return nil, fmt.Errorf("session id %d not found", sessionId)
 	}
 
-	return channel, nil
+	return &sd, nil
 }
 
 func (c *connectionSessions) endSession(sessionId uint32) error {
-	channel, err := c.getChannel(sessionId)
+	sd, err := c.getSessionData(sessionId)
 	if err != nil {
 		return err
 	}
 
 	c.Lock()
+	defer c.Unlock()
 	// these must happen together to avoid duplicate channel closure (a fatal error)
 	// therefore, these calls should only be made through a call to this endSession function
-	close(channel)
+	close(sd.channel)
 	delete(c.sessions, sessionId)
-	c.Unlock()
 	return nil
 }
 
 func (c *connectionSessions) initiateNewSession(req *Request, res *Response, frame messageFrame, endpoint func(*Request, *Response)) {
-	channel, err := c.getChannel(frame.sessionId)
+	sd, err := c.getSessionData(frame.sessionId)
 	if err != nil {
 		errorFrame := createErrorSession(frame.endpointId, frame.sessionId, err.Error())
 		res.Send(&errorFrame)
 		return
 	}
 
+	localAuthProvider := req.Auth
+	if localAuthProvider == nil && sd.auth != nil {
+		localAuthProvider = &AuthAPI{
+			sd.auth,
+		}
+	}
+
 	forwardReq := Request{
 		Context: req.Context,
-		Data:    channel,
+		Data:    sd.channel,
 		Headers: req.Headers,
-		Auth:    req.Auth,
+		Auth:    localAuthProvider,
 	}
 	forwardRes := Response{
 		sendFunction: func(dataToSend *[]byte, error bool) {

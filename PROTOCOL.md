@@ -14,6 +14,7 @@ Messages must also contain a Flag that describes the intent or content of the me
 - `0000 0000` `Data`
 - `0000 0001` `ClientSessionRequest` — Client requesting a new session from server
 - `0000 0010` `ServerSessionAck` — Server confirming the new session to the client
+- `1000 0001` `ClientSessionRequestWithAuth` — Client requesting a new session from server while also specifying a JWT that will be used to authenticate this session (and this session only)
 - `0000 0011` `Close` — Server/Client notifying other party that they now regard the session as closed
 - `0000 0100` `ErrorClientID` — Server sending an error message during the handshake process before a Session ID has been assigned
 - `0000 0101` `ErrorSessionID` — Server sending an error message after a Session ID has been communicated to the client
@@ -31,6 +32,11 @@ The client must send the following transmission:
 
 | Endpoint ID (16 bits) | Flag: `ClientSessionRequest` | Client ID (32 bits) |
 |-----------------------|------------------------------|---------------------|
+
+Alternatively, if wishing to open a session with a single session-specific token for authentication, the client must send the following transmission:
+
+| Endpoint ID (16 bits) | Flag: `ClientSessionRequestWithAuth` | Client ID (32 bits) | String token |
+|-----------------------|--------------------------------------|---------------------|--------------|
 
 The server must initiate a call to the associated user-declared Endpoint Handler corresponding with the Endpoint ID. If no Endpoint Handler has been declared for the Endpoint ID, the server must respond with a text-based WebSocket message with the content `endpoint not found` and discontinue the handshake.
 

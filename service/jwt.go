@@ -131,25 +131,18 @@ func (api *AuthAPI) UpdateToken(token string) error {
 	return api.verifyAndStoreToken(token)
 }
 
-func setupRequestAuthorization(req *Request, token string, config *HermodConfig) error {
+func setupRequestAuthentication(token string, config *HermodConfig) (*AuthAPI, error) {
 	if config.AuthenticationConfig == nil {
-		return fmt.Errorf("authentication hasn't been configured")
-	}
-
-	if req.Auth != nil {
-		err := req.Auth.UpdateToken(token)
-		return err
+		return nil, fmt.Errorf("authentication hasn't been configured")
 	}
 
 	auth := newAuthProviderFromConfig(config.AuthenticationConfig)
 	err := auth.verifyAndStoreToken(token)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	req.Auth = &AuthAPI{
+	return &AuthAPI{
 		auth,
-	}
-
-	return nil
+	}, nil
 }

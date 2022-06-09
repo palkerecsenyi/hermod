@@ -6,14 +6,15 @@ import (
 )
 
 const (
-	Data                 = 0
-	ClientSessionRequest = 1
-	ServerSessionAck     = 2
-	Close                = 3
-	ErrorClientID        = 4
-	ErrorSessionID       = 5
-	Authentication       = 6
-	AuthenticationAck    = 7
+	Data                         = 0
+	ClientSessionRequest         = 1
+	ClientSessionRequestWithAuth = 0b10000001
+	ServerSessionAck             = 2
+	Close                        = 3
+	ErrorClientID                = 4
+	ErrorSessionID               = 5
+	Authentication               = 6
+	AuthenticationAck            = 7
 )
 
 // AuthenticationEndpoint is a phantom endpoint that's used to signify an authentication message
