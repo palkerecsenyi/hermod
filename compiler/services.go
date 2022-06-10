@@ -52,12 +52,40 @@ func writeHandlerCall(w *bytes.Buffer, errIsNew bool, doneCall bool, indentModif
 	}
 }
 
-func writeDecoderCall(w *bytes.Buffer, in string, out string, inArgument *endpointArgumentDefinition, indentModifier int) {
+func writeDecoderCall(w *bytes.Buffer, in, out string, inArgument *endpointArgumentDefinition, indentModifier int) {
 	_writelni(w, 2+indentModifier, fmt.Sprintf("%s, err := Decode%s(%s)", out, getArgumentDataType(inArgument), in))
 	_writelni(w, 2+indentModifier, "if err != nil {")
 	_writelni(w, 3+indentModifier, "res.SendError(fmt.Errorf(\"handler for endpoint with ID %d failed to decode incoming message: %s\", endpointId, err.Error()))")
 	_writelni(w, 3+indentModifier, "return")
 	_writelni(w, 2+indentModifier, "}")
+}
+
+func writeClientStub(w *bytes.Buffer, endpointId uint16, publicPathName string, inArgument, outArgument endpointArgumentDefinition) {
+	var (
+		inName  = "encoder.UserFacingHermodUnit"
+		outName = "client.DummyOutSample"
+	)
+
+	if inArgument.UnitName != "" {
+		inName = getArgumentDataType(&inArgument)
+	}
+
+	if outArgument.UnitName != "" {
+		outName = getArgumentDataType(&outArgument)
+	}
+
+	serviceReadWriterType := fmt.Sprintf(`client.ServiceReadWriter[%s, %s]`, inName, outName)
+	_writeln(w, fmt.Sprintf("func Request%s(router *client.WebSocketRouter, token ...string) (*%s, error) {", publicPathName, serviceReadWriterType))
+	_writelni(w, 1, fmt.Sprintf("rw := %s{", serviceReadWriterType))
+	_writelni(w, 2, "Router: router,")
+	_writelni(w, 2, fmt.Sprintf("Endpoint: %d,", endpointId))
+	_writelni(w, 2, fmt.Sprintf("HasIn: %t,", inArgument.UnitName != ""))
+	_writelni(w, 2, fmt.Sprintf("OutSample: %s{},", outName))
+	_writelni(w, 1, "}")
+
+	_writelni(w, 1, "err := rw.Init(token...)")
+	_writelni(w, 1, "return &rw, err")
+	_writeln(w, "}")
 }
 
 func writeService(w *bytes.Buffer, service *serviceDefinition, packageName string) (imports []string) {
@@ -72,6 +100,9 @@ func writeService(w *bytes.Buffer, service *serviceDefinition, packageName strin
 			log.Fatalln("encountered endpoint with illegal ID 0xFFFF")
 			return
 		}
+
+		imports = append(imports, fmt.Sprintf("%s/client", packageName))
+		writeClientStub(w, endpoint.Id, publicPathName, endpoint.In, endpoint.Out)
 
 		_writeln(w, fmt.Sprintf("type %s_Request struct {", publicPathName))
 		writeArgumentDefinition(w, &endpoint.In)

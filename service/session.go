@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"github.com/palkerecsenyi/hermod/framing"
 	"sync"
 )
 
@@ -94,10 +95,10 @@ func (c *connectionSessions) endSession(sessionId uint32) error {
 	return nil
 }
 
-func (c *connectionSessions) initiateNewSession(req *Request, res *Response, frame messageFrame, endpoint func(*Request, *Response)) {
-	sd, err := c.getSessionData(frame.sessionId)
+func (c *connectionSessions) initiateNewSession(req *Request, res *Response, frame framing.MessageFrame, endpoint func(*Request, *Response)) {
+	sd, err := c.getSessionData(frame.SessionId)
 	if err != nil {
-		errorFrame := createErrorSession(frame.endpointId, frame.sessionId, err.Error())
+		errorFrame := framing.CreateErrorSession(frame.EndpointId, frame.SessionId, err.Error())
 		res.Send(&errorFrame)
 		return
 	}
@@ -118,18 +119,18 @@ func (c *connectionSessions) initiateNewSession(req *Request, res *Response, fra
 	forwardRes := Response{
 		sendFunction: func(dataToSend *[]byte, error bool) {
 			if error {
-				errorFrame := createErrorSession(frame.endpointId, frame.sessionId, string(*dataToSend))
+				errorFrame := framing.CreateErrorSession(frame.EndpointId, frame.SessionId, string(*dataToSend))
 				res.Send(&errorFrame)
 				return
 			}
 
-			responseFrame := messageFrame{
-				endpointId: frame.endpointId,
-				sessionId:  frame.sessionId,
-				flag:       Data,
-				data:       *dataToSend,
+			responseFrame := framing.MessageFrame{
+				EndpointId: frame.EndpointId,
+				SessionId:  frame.SessionId,
+				Flag:       framing.Data,
+				Data:       *dataToSend,
 			}
-			encoded := responseFrame.encode()
+			encoded := responseFrame.Encode()
 			res.Send(&encoded)
 		},
 	}
@@ -137,7 +138,8 @@ func (c *connectionSessions) initiateNewSession(req *Request, res *Response, fra
 	go func() {
 		endpoint(&forwardReq, &forwardRes)
 		// if there's an error, the session has probably been manually closed elsewhere
-		_ = c.endSession(frame.sessionId)
-		res.Send(frame.close())
+		_ = c.endSession(frame.SessionId)
+		closeMessage := frame.Close()
+		res.Send(&closeMessage)
 	}()
 }

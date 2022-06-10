@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"github.com/palkerecsenyi/hermod/encoder"
+	"github.com/palkerecsenyi/hermod/framing"
 	"log"
 	"net/url"
 )
@@ -29,40 +30,40 @@ func serveWsConnection(req *Request, res *Response, query url.Values, config *He
 		case _data = <-req.Data:
 			data := *_data
 
-			frame := messageFrame{}
+			frame := framing.MessageFrame{}
 
-			frame.endpointId = encoder.SliceToU16(data[0:2])
-			endpoint, ok := endpointRegistrations[frame.endpointId]
-			if !ok && frame.endpointId != AuthenticationEndpoint {
-				res.SendError(fmt.Errorf("endpoint %d not found", frame.endpointId))
+			frame.EndpointId = encoder.SliceToU16(data[0:2])
+			endpoint, ok := endpointRegistrations[frame.EndpointId]
+			if !ok && frame.EndpointId != framing.AuthenticationEndpoint {
+				res.SendError(fmt.Errorf("endpoint %d not found", frame.EndpointId))
 				return
 			}
 
-			frame.flag = data[2]
-			if frame.flag == ClientSessionRequest || frame.flag == ClientSessionRequestWithAuth {
-				ack := sessionFrame{}
-				ack.endpointId = frame.endpointId
+			frame.Flag = data[2]
+			if frame.Flag == framing.ClientSessionRequest || frame.Flag == framing.ClientSessionRequestWithAuth {
+				ack := framing.SessionFrame{}
+				ack.EndpointId = frame.EndpointId
 
-				ack.clientId = encoder.SliceToU32(data[3:7])
+				ack.ClientId = encoder.SliceToU32(data[3:7])
 
 				var err error
-				frame.sessionId, err = sessions.createNewSession()
+				frame.SessionId, err = sessions.createNewSession()
 				if err != nil {
-					errorFrame := createErrorClient(ack.endpointId, ack.clientId, err.Error())
+					errorFrame := framing.CreateErrorClient(ack.EndpointId, ack.ClientId, err.Error())
 					res.Send(&errorFrame)
 					continue
 				}
 
-				if frame.flag == ClientSessionRequestWithAuth {
+				if frame.Flag == framing.ClientSessionRequestWithAuth {
 					if len(data) == 7 {
-						errorFrame := createErrorClient(ack.endpointId, ack.clientId, "expected token but none specified")
+						errorFrame := framing.CreateErrorClient(ack.EndpointId, ack.ClientId, "expected token but none specified")
 						res.Send(&errorFrame)
 						continue
 					}
 
 					token := string(data[7:])
 					if token == "" {
-						errorFrame := createErrorClient(ack.endpointId, ack.clientId, "token was empty")
+						errorFrame := framing.CreateErrorClient(ack.EndpointId, ack.ClientId, "token was empty")
 						res.Send(&errorFrame)
 						continue
 					}
@@ -70,26 +71,26 @@ func serveWsConnection(req *Request, res *Response, query url.Values, config *He
 					var api *AuthAPI
 					api, err = setupRequestAuthentication(token, config)
 					if err != nil {
-						errorFrame := createErrorClient(ack.endpointId, ack.clientId, err.Error())
+						errorFrame := framing.CreateErrorClient(ack.EndpointId, ack.ClientId, err.Error())
 						res.Send(&errorFrame)
 						continue
 					}
 
-					err = sessions.setSessionAuth(frame.sessionId, api.authProvider)
+					err = sessions.setSessionAuth(frame.SessionId, api.authProvider)
 					if err != nil {
-						errorFrame := createErrorClient(ack.endpointId, ack.clientId, err.Error())
+						errorFrame := framing.CreateErrorClient(ack.EndpointId, ack.ClientId, err.Error())
 						res.Send(&errorFrame)
 						continue
 					}
 				}
 
-				res.Send(ack.ack(frame.sessionId))
+				res.Send(ack.Ack(frame.SessionId))
 				sessions.initiateNewSession(req, res, frame, endpoint)
 				continue
 			}
 
-			if frame.endpointId == AuthenticationEndpoint {
-				if frame.flag != Authentication {
+			if frame.EndpointId == framing.AuthenticationEndpoint {
+				if frame.Flag != framing.Authentication {
 					res.SendError(fmt.Errorf("made AuthenticationEndpoint request without using the Authentication flag"))
 					return
 				}
@@ -103,27 +104,27 @@ func serveWsConnection(req *Request, res *Response, query url.Values, config *He
 
 				req.Auth = api
 
-				ackFrame := authenticationAck(token)
-				res.Send(ackFrame.encode())
+				ackFrame := framing.NewAuthenticationAck(token)
+				res.Send(ackFrame.Encode())
 				continue
 			}
 
-			frame.sessionId = encoder.SliceToU32(data[3:7])
+			frame.SessionId = encoder.SliceToU32(data[3:7])
 
-			if frame.flag == Close {
+			if frame.Flag == framing.Close {
 				// if there's an error, the session has probably been closed automatically
-				_ = sessions.endSession(frame.sessionId)
+				_ = sessions.endSession(frame.SessionId)
 				continue
 			}
 
-			sd, err := sessions.getSessionData(frame.sessionId)
+			sd, err := sessions.getSessionData(frame.SessionId)
 			if err != nil {
-				errorFrame := createErrorSession(frame.endpointId, frame.sessionId, err.Error())
+				errorFrame := framing.CreateErrorSession(frame.EndpointId, frame.SessionId, err.Error())
 				res.Send(&errorFrame)
 				continue
 			}
 
-			if frame.flag == Data {
+			if frame.Flag == framing.Data {
 				encodedUnit := data[7:]
 				if len(encodedUnit) == 0 {
 					log.Println("received malformed message with unit size 0")
@@ -132,7 +133,7 @@ func serveWsConnection(req *Request, res *Response, query url.Values, config *He
 
 				sd.channel <- &encodedUnit
 			} else {
-				log.Printf("unrecognised flag %b\n", frame.flag)
+				log.Printf("unrecognised flag %b\n", frame.Flag)
 			}
 		}
 	}
