@@ -21,6 +21,8 @@ type ServiceReadWriter[In encoder.UserFacingHermodUnit, Out encoder.UserFacingHe
 
 	HasIn     bool
 	OutSample Out
+	Context   context.Context
+	cancel    context.CancelFunc
 
 	route *webSocketRoute
 }
@@ -58,7 +60,11 @@ func (rw *ServiceReadWriter[In, Out]) Send(data In) error {
 }
 
 func (rw *ServiceReadWriter[In, Out]) Messages() (<-chan Out, <-chan error, error) {
-	dataChan, err := rw.route.run(rw.Router.context)
+	if rw.Context == nil {
+		rw.Context, rw.cancel = context.WithCancel(rw.Router.context)
+	}
+
+	dataChan, err := rw.route.run(rw.Context)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -97,7 +103,7 @@ func (rw *ServiceReadWriter[In, Out]) Messages() (<-chan Out, <-chan error, erro
 		}
 	}()
 
-	timeout, cancel := context.WithTimeout(rw.Router.context, rw.Router.Timeout)
+	timeout, cancel := context.WithTimeout(rw.Context, rw.Router.Timeout)
 	defer cancel()
 
 	select {
@@ -111,4 +117,33 @@ func (rw *ServiceReadWriter[In, Out]) Messages() (<-chan Out, <-chan error, erro
 
 		return outputChan, errorChan, nil
 	}
+}
+
+func (rw *ServiceReadWriter[In, Out]) NextMessage() (*Out, error) {
+	dataChan, errorChan, err := rw.Messages()
+	if err != nil {
+		return nil, err
+	}
+
+	select {
+	case data, ok := <-dataChan:
+		if !ok {
+			return nil, fmt.Errorf("connection closed")
+		}
+		return &data, nil
+	case sessionError, ok := <-errorChan:
+		if !ok {
+			return nil, fmt.Errorf("connection closed")
+		}
+		return nil, sessionError
+	}
+}
+
+func (rw *ServiceReadWriter[In, Out]) Close() error {
+	if rw.cancel == nil {
+		return fmt.Errorf("context has not been initialised")
+	}
+
+	rw.cancel()
+	return nil
 }

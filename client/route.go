@@ -5,12 +5,17 @@ import (
 	"fmt"
 	"github.com/palkerecsenyi/hermod/encoder"
 	"github.com/palkerecsenyi/hermod/framing"
+	"sync"
 )
 
 type webSocketRoute struct {
-	endpoint uint16
-	client   uint32
-	session  *uint32
+	// mutex prevents session request from being sent multiple times
+	sync.Mutex
+
+	endpoint           uint16
+	client             uint32
+	session            *uint32
+	sessionRequestSent bool
 
 	token *string
 
@@ -109,6 +114,9 @@ func (route *webSocketRoute) receive(ctx context.Context, output chan<- receiveO
 }
 
 func (route *webSocketRoute) run(ctx context.Context) (chan receiveOutput, error) {
+	route.Lock()
+	defer route.Unlock()
+
 	var flag uint8 = framing.ClientSessionRequest
 	var token string
 	if route.token != nil {
@@ -153,10 +161,15 @@ func (route *webSocketRoute) run(ctx context.Context) (chan receiveOutput, error
 		close(output)
 	}()
 
-	var err error
-	err = route.router.send(frame.Encode())
-	if err != nil {
-		return nil, fmt.Errorf("sending open frame: %s", err)
+	// this allows for multiple calls to run(), only sending an open packet if this hasn't already been done
+	if !route.sessionRequestSent {
+		route.sessionRequestSent = true
+
+		var err error
+		err = route.router.send(frame.Encode())
+		if err != nil {
+			return nil, fmt.Errorf("sending open frame: %s", err)
+		}
 	}
 
 	return output, nil
