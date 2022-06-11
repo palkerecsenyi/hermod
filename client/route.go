@@ -162,14 +162,20 @@ func (route *webSocketRoute) run(ctx context.Context) (chan receiveOutput, error
 	}()
 
 	// this allows for multiple calls to run(), only sending an open packet if this hasn't already been done
-	if !route.sessionRequestSent {
-		route.sessionRequestSent = true
-
+	if route.sessionRequestSent {
+		defer func() {
+			output <- receiveOutput{
+				event: eventSessionReady,
+			}
+		}()
+	} else {
 		var err error
 		err = route.router.send(frame.Encode())
 		if err != nil {
 			return nil, fmt.Errorf("sending open frame: %s", err)
 		}
+
+		route.sessionRequestSent = true
 	}
 
 	return output, nil

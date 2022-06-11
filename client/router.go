@@ -10,20 +10,16 @@ import (
 	"time"
 )
 
-type routeStore struct {
-	sync.Mutex
-	routes []webSocketRoute
-}
-
 type WebSocketRouter struct {
-	URL        url.URL
-	Timeout    time.Duration
-	routeStore routeStore
+	URL     url.URL
+	Timeout time.Duration
+	// routeStore is a map of type map[uint32]*webSocketRoute
+	routeStore sync.Map
 	connection *websocket.Conn
 	data       chan []byte
 
 	context context.Context
-	close   chan struct{}
+	cancel  context.CancelFunc
 }
 
 func (router *WebSocketRouter) Connect(token ...string) error {
@@ -39,34 +35,20 @@ func (router *WebSocketRouter) Connect(token ...string) error {
 		router.URL.Query().Add("token", token[0])
 	}
 
+	if router.context != nil {
+		return fmt.Errorf("connect already called (reconnect not supported)")
+	}
+
 	connection, _, err := websocket.DefaultDialer.Dial(router.URL.String(), nil)
 	if err != nil {
 		return fmt.Errorf("opening websocket: %s", err)
 	}
 
 	router.connection = connection
-	router.routeStore = routeStore{
-		routes: []webSocketRoute{},
-	}
+	router.routeStore = sync.Map{}
 	router.data = make(chan []byte)
 
-	var cancel context.CancelFunc
-	router.context, cancel = context.WithCancel(context.Background())
-
-	router.close = make(chan struct{})
-	go func(close <-chan struct{}) {
-		for {
-			select {
-			case <-router.context.Done():
-				return
-			case _, open := <-close:
-				if !open {
-					cancel()
-				}
-			}
-		}
-	}(router.close)
-
+	router.context, router.cancel = context.WithCancel(context.Background())
 	go func() {
 		for {
 			select {
@@ -96,8 +78,9 @@ func (router *WebSocketRouter) Close() error {
 		return err
 	}
 
-	// notifies the goroutine in Connect() to cancel the context
-	close(router.close)
+	if router.cancel != nil {
+		router.cancel()
+	}
 
 	return nil
 }
@@ -123,19 +106,18 @@ func (router *WebSocketRouter) initRoute(endpoint uint16, token ...string) (*web
 		return nil, fmt.Errorf("connection required before opening route")
 	}
 
-	router.routeStore.Lock()
-	defer router.routeStore.Unlock()
-
 	// find an unused client ID
 	var client uint32 = 0
 	for i := uint32(0); i <= uint32(0xffffffff); i++ {
 		used := false
-		for _, route := range router.routeStore.routes {
-			if route.client == i {
+		router.routeStore.Range(func(thisClient, _ any) bool {
+			if val, ok := thisClient.(uint32); ok && val == client {
 				used = true
-				break
+				return false
 			}
-		}
+
+			return true
+		})
 
 		if !used {
 			client = i
@@ -158,30 +140,10 @@ func (router *WebSocketRouter) initRoute(endpoint uint16, token ...string) (*web
 		route.token = &t
 	}
 
-	router.routeStore.routes = append(router.routeStore.routes, route)
-
+	router.routeStore.Store(client, &route)
 	return &route, nil
 }
 
-func (router *WebSocketRouter) unlockClientID(client uint32) error {
-	router.routeStore.Lock()
-	defer router.routeStore.Unlock()
-
-	routeIndex := -1
-	for i, route := range router.routeStore.routes {
-		if route.client == client {
-			routeIndex = i
-			break
-		}
-	}
-
-	if routeIndex == -1 {
-		return fmt.Errorf("client ID not in use")
-	}
-
-	routeStoreSize := len(router.routeStore.routes)
-	router.routeStore.routes[routeIndex] = router.routeStore.routes[routeStoreSize-1]
-	router.routeStore.routes = router.routeStore.routes[:routeStoreSize-1]
-
-	return nil
+func (router *WebSocketRouter) unlockClientID(client uint32) {
+	router.routeStore.Delete(client)
 }
