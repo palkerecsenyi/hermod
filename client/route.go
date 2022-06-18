@@ -19,13 +19,14 @@ type webSocketRoute struct {
 
 	token *string
 
-	router *WebSocketRouter
+	websocketIn <-chan *[]byte
+	received    chan receiveOutput
+	router      *WebSocketRouter
 }
 
 const (
 	eventData = iota
 	eventSessionAck
-	eventSessionReady
 )
 
 type receiveOutput struct {
@@ -34,41 +35,41 @@ type receiveOutput struct {
 	event int
 }
 
-func (route *webSocketRoute) receive(ctx context.Context, output chan<- receiveOutput, sessionAck bool) {
-	defer close(output)
+func (route *webSocketRoute) receive(ctx context.Context) {
+	defer func() {
+		close(route.received)
+	}()
 
 	for {
 		select {
 		case <-ctx.Done():
-			output <- receiveOutput{
+			route.received <- receiveOutput{
 				error: fmt.Errorf("context ended"),
 			}
 			return
-		case data, ok := <-route.router.data:
+		case _data, ok := <-route.websocketIn:
+			data := *_data
+
 			if !ok {
-				output <- receiveOutput{
+				route.received <- receiveOutput{
 					error: fmt.Errorf("connection closed"),
 				}
 				return
 			}
 
-			endpoint := encoder.SliceToU16(data[0:2])
-			if endpoint != route.endpoint {
-				continue
-			}
-
 			flag := data[2]
 			if flag == framing.ServerSessionAck {
-				if sessionAck {
-					client := encoder.SliceToU32(data[3:7])
-					if client != route.client {
-						continue
-					}
+				client := encoder.SliceToU32(data[3:7])
+				if client != route.client {
+					continue
+				}
 
-					output <- receiveOutput{
-						data:  data[7:11],
-						event: eventSessionAck,
-					}
+				sessionId := encoder.SliceToU32(data[7:11])
+				route.router.unlockClientID(route.client)
+				route.session = &sessionId
+
+				route.received <- receiveOutput{
+					event: eventSessionAck,
 				}
 				continue
 			}
@@ -77,7 +78,7 @@ func (route *webSocketRoute) receive(ctx context.Context, output chan<- receiveO
 				clientOrSession := encoder.SliceToU32(data[3:7])
 				if route.session != nil && flag == framing.ErrorSessionID && clientOrSession == *route.session {
 					message := data[7:]
-					output <- receiveOutput{
+					route.received <- receiveOutput{
 						error: fmt.Errorf("server (session ID): %s", message),
 					}
 					return
@@ -85,12 +86,16 @@ func (route *webSocketRoute) receive(ctx context.Context, output chan<- receiveO
 
 				if flag == framing.ErrorClientID && clientOrSession == route.client {
 					message := data[7:]
-					output <- receiveOutput{
+					route.received <- receiveOutput{
 						error: fmt.Errorf("server (client ID): %s", message),
 					}
 					return
 				}
 
+				continue
+			}
+
+			if route.session == nil {
 				continue
 			}
 
@@ -104,7 +109,7 @@ func (route *webSocketRoute) receive(ctx context.Context, output chan<- receiveO
 			}
 
 			if flag == framing.Data {
-				output <- receiveOutput{
+				route.received <- receiveOutput{
 					data:  data[7:],
 					event: eventData,
 				}
@@ -113,9 +118,15 @@ func (route *webSocketRoute) receive(ctx context.Context, output chan<- receiveO
 	}
 }
 
-func (route *webSocketRoute) run(ctx context.Context) (chan receiveOutput, error) {
+// open sends an ClientSessionRequest message.
+// If the session has already been opened, open returns immediately and without error.
+func (route *webSocketRoute) open() error {
 	route.Lock()
 	defer route.Unlock()
+
+	if route.sessionRequestSent {
+		return nil
+	}
 
 	var flag uint8 = framing.ClientSessionRequest
 	var token string
@@ -131,54 +142,13 @@ func (route *webSocketRoute) run(ctx context.Context) (chan receiveOutput, error
 		Token:      token,
 	}
 
-	input := make(chan receiveOutput)
-	go func() {
-		route.receive(ctx, input, true)
-	}()
-
-	output := make(chan receiveOutput)
-	go func() {
-		for data := range input {
-			if data.error != nil {
-				output <- data
-				break
-			}
-
-			if data.event == eventSessionAck {
-				id := encoder.SliceToU32(data.data)
-				route.session = &id
-				output <- receiveOutput{
-					event: eventSessionReady,
-				}
-				continue
-			}
-
-			if data.event == eventData {
-				output <- data
-				continue
-			}
-		}
-		close(output)
-	}()
-
-	// this allows for multiple calls to run(), only sending an open packet if this hasn't already been done
-	if route.sessionRequestSent {
-		defer func() {
-			output <- receiveOutput{
-				event: eventSessionReady,
-			}
-		}()
-	} else {
-		var err error
-		err = route.router.send(frame.Encode())
-		if err != nil {
-			return nil, fmt.Errorf("sending open frame: %s", err)
-		}
-
-		route.sessionRequestSent = true
+	err := route.router.send(frame.Encode())
+	if err != nil {
+		return fmt.Errorf("sending open frame: %s", err)
 	}
 
-	return output, nil
+	route.sessionRequestSent = true
+	return nil
 }
 
 func (route *webSocketRoute) send(message []byte) error {

@@ -3,7 +3,6 @@ package service
 import (
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"github.com/gorilla/websocket"
 	"net/http"
 )
@@ -87,5 +86,4 @@ func ServeConnection(config *HermodConfig, w http.ResponseWriter, r *http.Reques
 
 	<-done
 	close(request.Data)
-	fmt.Println("exec complete")
 }

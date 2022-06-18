@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/gorilla/websocket"
+	"github.com/palkerecsenyi/hermod/encoder"
 	"log"
 	"net/url"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -13,11 +15,16 @@ import (
 type WebSocketRouter struct {
 	URL     url.URL
 	Timeout time.Duration
-	// routeStore is a map of type map[uint32]*webSocketRoute
-	routeStore sync.Map
-	connection *websocket.Conn
-	data       chan []byte
 
+	routeStore      map[uint32]*webSocketRoute
+	routeStoreMutex sync.Mutex
+
+	connectionMutex sync.Mutex
+	connection      *websocket.Conn
+
+	openMutex sync.Mutex
+
+	data    chan []byte
 	context context.Context
 	cancel  context.CancelFunc
 }
@@ -45,7 +52,7 @@ func (router *WebSocketRouter) Connect(token ...string) error {
 	}
 
 	router.connection = connection
-	router.routeStore = sync.Map{}
+	router.routeStore = map[uint32]*webSocketRoute{}
 	router.data = make(chan []byte)
 
 	router.context, router.cancel = context.WithCancel(context.Background())
@@ -53,6 +60,7 @@ func (router *WebSocketRouter) Connect(token ...string) error {
 		for {
 			select {
 			case <-router.context.Done():
+				close(router.data)
 				return
 			default:
 				_, message, err := connection.ReadMessage()
@@ -90,6 +98,9 @@ func (router *WebSocketRouter) send(data interface{}) error {
 		return fmt.Errorf("connection required to send message")
 	}
 
+	router.connectionMutex.Lock()
+	defer router.connectionMutex.Unlock()
+
 	if stringData, ok := data.(string); ok {
 		return router.connection.WriteMessage(websocket.TextMessage, []byte(stringData))
 	}
@@ -106,20 +117,14 @@ func (router *WebSocketRouter) initRoute(endpoint uint16, token ...string) (*web
 		return nil, fmt.Errorf("connection required before opening route")
 	}
 
+	router.routeStoreMutex.Lock()
+	defer router.routeStoreMutex.Unlock()
+
 	// find an unused client ID
 	var client uint32 = 0
 	for i := uint32(0); i <= uint32(0xffffffff); i++ {
-		used := false
-		router.routeStore.Range(func(thisClient, _ any) bool {
-			if val, ok := thisClient.(uint32); ok && val == client {
-				used = true
-				return false
-			}
-
-			return true
-		})
-
-		if !used {
+		_, clientInUse := router.routeStore[i]
+		if !clientInUse {
 			client = i
 			break
 		}
@@ -129,10 +134,42 @@ func (router *WebSocketRouter) initRoute(endpoint uint16, token ...string) (*web
 		}
 	}
 
+	routeChan := make(chan *[]byte)
+	receiveDoneChan := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-router.context.Done():
+				close(routeChan)
+				return
+			case <-receiveDoneChan:
+				close(routeChan)
+				return
+			case data, ok := <-router.data:
+				if !ok {
+					close(routeChan)
+					return
+				}
+
+				// a lightweight check to reduce the load on individual routes.
+				// obviously this doesn't filter multiple same-endpoint sessions though.
+				dataEndpoint := encoder.SliceToU16(data[0:2])
+				if dataEndpoint != endpoint {
+					continue
+				}
+
+				routeChan <- &data
+			}
+		}
+	}()
+
+	received := make(chan receiveOutput)
 	route := webSocketRoute{
-		client:   client,
-		endpoint: endpoint,
-		router:   router,
+		client:      client,
+		endpoint:    endpoint,
+		router:      router,
+		websocketIn: routeChan,
+		received:    received,
 	}
 
 	if len(token) == 1 {
@@ -140,10 +177,21 @@ func (router *WebSocketRouter) initRoute(endpoint uint16, token ...string) (*web
 		route.token = &t
 	}
 
-	router.routeStore.Store(client, &route)
+	router.routeStore[client] = &route
+
+	go func() {
+		route.receive(router.context)
+		// let the for-loop in the goroutine above know to stop listening
+		close(receiveDoneChan)
+	}()
+
+	// make sure the route.receive call in the goroutine is actually ready before continuing
+	runtime.Gosched()
 	return &route, nil
 }
 
 func (router *WebSocketRouter) unlockClientID(client uint32) {
-	router.routeStore.Delete(client)
+	router.routeStoreMutex.Lock()
+	defer router.routeStoreMutex.Unlock()
+	delete(router.routeStore, client)
 }

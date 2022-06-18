@@ -52,24 +52,20 @@ func (rw *ServiceReadWriter[In, Out]) Messages() (<-chan Out, <-chan error, erro
 		rw.Context, rw.cancel = context.WithCancel(rw.Router.context)
 	}
 
-	dataChan, err := rw.route.run(rw.Context)
-	if err != nil {
-		return nil, nil, err
-	}
+	rw.Router.openMutex.Lock()
+	defer rw.Router.openMutex.Unlock()
 
 	outputChan := make(chan Out)
 	errorChan := make(chan error)
 	openChan := make(chan struct{})
 	go func() {
-		for {
-			nextData, open := <-dataChan
-			if !open {
-				close(outputChan)
-				close(errorChan)
-				return
-			}
+		defer func() {
+			close(outputChan)
+			close(errorChan)
+		}()
 
-			if nextData.event == eventSessionReady {
+		for nextData := range rw.route.received {
+			if nextData.event == eventSessionAck {
 				close(openChan)
 				continue
 			}
@@ -89,7 +85,13 @@ func (rw *ServiceReadWriter[In, Out]) Messages() (<-chan Out, <-chan error, erro
 				outputChan <- decoded.(Out)
 			}
 		}
+
 	}()
+
+	err := rw.route.open()
+	if err != nil {
+		return nil, nil, err
+	}
 
 	timeout, cancel := context.WithTimeout(rw.Context, rw.Router.Timeout)
 	defer cancel()
@@ -97,8 +99,8 @@ func (rw *ServiceReadWriter[In, Out]) Messages() (<-chan Out, <-chan error, erro
 	select {
 	case <-timeout.Done():
 		return nil, nil, fmt.Errorf("session open timeout")
+	// wait for the open to complete
 	case <-openChan:
-		rw.Router.unlockClientID(rw.route.client)
 		return outputChan, errorChan, nil
 	}
 }
@@ -116,12 +118,12 @@ func (rw *ServiceReadWriter[In, Out]) NextMessage(readyChan chan<- interface{}) 
 	select {
 	case data, ok := <-dataChan:
 		if !ok {
-			return nil, fmt.Errorf("connection closed")
+			return nil, fmt.Errorf("session closed")
 		}
 		return &data, nil
 	case sessionError, ok := <-errorChan:
 		if !ok {
-			return nil, fmt.Errorf("connection closed")
+			return nil, fmt.Errorf("session closed")
 		}
 		return nil, sessionError
 	}
